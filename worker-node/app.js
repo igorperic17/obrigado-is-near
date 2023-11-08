@@ -25,24 +25,33 @@ async function downloadAndPrepareWorkspace(url, taskId) {
   const response = await axios({ url, responseType: 'arraybuffer' });
   await decompress(response.data, workspaceDir);
 
+  prepareWorkspace(workspaceDir)
+
+  return workspaceDir;
+}
+
+async function prepareWorkspace(workspaceDir) {
   // Create a Python virtual environment
   await execa('python3', ['-m', 'venv', 'venv'], { cwd: workspaceDir });
 
   // Install dependencies from requirements.txt
   await execa('./venv/bin/pip', ['install', '-r', 'requirements.txt'], { cwd: workspaceDir });
-
-  return workspaceDir;
 }
 
 // Function to execute the Python script
-async function executePythonScript(workspaceDir) {
-  return new Promise((resolve, reject) => {
-    PythonShell.run('main.py', { pythonPath: `${workspaceDir}/venv/bin/python` }, (err, results) => {
-      if (err) reject(err);
-      resolve(results);
+async function executePythonScript(workspaceDir, entryScript) {
+    return new Promise((resolve, reject) => {
+      PythonShell.run(`${workspaceDir}${entryScript}`, { pythonPath: `${workspaceDir}/venv/bin/python` }, (err, results) => {
+        if (err) {
+          console.error('Error running Python script:', err);
+          reject(err);
+        } else {
+          console.log('Results from Python script:', results);
+          resolve(results);
+        }
+      });
     });
-  });
-}
+  }
 
 // Function to upload results to IPFS
 async function uploadResultsToIPFS(workspaceDir) {
@@ -70,7 +79,7 @@ async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
 async function processTask(contract, taskId, task) {
   try {
     const workspaceDir = await downloadAndPrepareWorkspace(task.workspace_url, taskId);
-    await executePythonScript(workspaceDir);
+    await executePythonScript(workspaceDir, 'main.py');
     const { url, hash } = await uploadResultsToIPFS(workspaceDir);
     await submitResultToContract(contract, taskId, url, hash);
   } catch (error) {
@@ -80,22 +89,43 @@ async function processTask(contract, taskId, task) {
 
 // Main function to listen to the job queue and process tasks
 async function listenToJobQueue() {
-  const near = await connect(nearConfig);
-  const wallet = near.account(nearConfig.contractName);
-  const contract = new Contract(wallet, nearConfig.contractName, {
-    viewMethods: ['get_tasks'],
-    changeMethods: ['submit_task_result'],
-  });
 
-  // Polling for new tasks
-  setInterval(async () => {
-    const tasks = await contract.get_tasks({ from_index: 0, limit: 100 });
-    for (const [taskId, task] of tasks) {
-      if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
-        await processTask(contract, taskId, task);
-      }
-    }
-  }, 10000); // Poll every 10 seconds
+    // while developing hardcode running the job from the local path
+    const job_workspace_dir = "../sample_jobs/hellonear/"
+
+    // create python venv and install requirements
+    await prepareWorkspace(job_workspace_dir)
+    await executePythonScript(job_workspace_dir, 'entry_script.py')
+    .then((output) => {
+        // Output has already been logged to the console in the function
+        // TODO: store it in a file, upload it and submit the results
+        console.log(output)
+      })
+      .catch((error) => {
+        // Error has already been logged to the console in the function
+        // TODO: store it in a file, upload it and submit the results
+        console.log(error)
+      });
+
+
+    // TODO: uncomment below to actually listen to the queue
+    // TODO: add the changes above to cetch the console logs and package them
+    const near = await connect(nearConfig);
+    const wallet = near.account(nearConfig.contractName);
+    const contract = new Contract(wallet, nearConfig.contractName, {
+        viewMethods: ['get_tasks'],
+        changeMethods: ['submit_task_result'],
+    });
+
+    // Polling for new tasks
+    setInterval(async () => {
+        const tasks = await contract.get_tasks({ from_index: 0, limit: 100 });
+        for (const [taskId, task] of tasks) {
+        if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
+            await processTask(contract, taskId, task);
+        }
+        }
+    }, 10000); // Poll every 10 seconds
 }
 
 listenToJobQueue().then(() => {

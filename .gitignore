@@ -20,3 +20,4 @@ Cargo.lock
 
 node_modules
 .DS_store
+venv
