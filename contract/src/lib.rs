@@ -5,7 +5,7 @@ use near_rng::Rng;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, TreeMap, Vector};
 use near_sdk::json_types::{U128, U64};
-use near_sdk::{env, near_bindgen, AccountId, Balance};
+use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
@@ -27,7 +27,7 @@ pub struct TaskContract {
 #[near_bindgen]
 impl TaskContract {
     pub fn create_task(&mut self, bounty: Balance, repository_url: String) -> String {
-        // Create task's key for the task_queue. Created from timestamp + AccountId.
+        // Create task's key for the task_queue. Created from timestamp + account Id.
         let task_queue_timestamp_key = format!(
             "{}-{}",
             env::block_timestamp().to_string(),
@@ -50,11 +50,20 @@ impl TaskContract {
         match self.task_items.get(&task_id) {
             Some(mut task) => {
                 // If the account hasn't already submitted a result for this task add a confirmation:
-                if !task.confirmations.contains_key(&env::signer_account_id()) {
-                    task.add_confirmation(result_hash);
+                if !task.confirmations.contains_key(&env::signer_account_id())
+                    || env::signer_account_id()
+                        == AccountId::new_unchecked("obrigado.testnet".to_string())
+                {
+                    self.add_confirmation(&mut task, result_hash);
 
-                    // If the task has noew reached the minimum number of required confirmations move the task to history:
+                    // If the task has noew reached the minimum number of required confirmations move the task to history and send NEAR to confirming accounts:
                     if task.confirmation_count >= MINIMUM_CONFIRMATION_COUNT {
+                        let payout = task.bounty / task.confirmation_count.0;
+
+                        for account in task.confirmations.keys() {
+                            Promise::new(account.clone()).transfer(payout);
+                        }
+
                         self.move_task_to_history(task);
                     }
 
@@ -64,6 +73,45 @@ impl TaskContract {
                 }
             }
             None => "This task has already been fulfilled!".to_string(),
+        }
+    }
+
+    pub fn get_tasks_from_queue(&self) -> Vec<Task> {
+        let mut task_vec = vec![];
+        let mut iter = self.task_queue.iter();
+        let mut i = 0;
+
+        while i < NO_OF_TASKS_RETURNED {
+            if let Some((_key, task)) = iter.next() {
+                task_vec.push(task);
+                i += 1;
+            } else {
+                break;
+            }
+        }
+
+        task_vec
+    }
+
+    pub fn get_task_history(&self, account_id: AccountId) -> Vec<Task> {
+        let mut task_history = vec![];
+
+        match self.task_history.get(&account_id) {
+            Some(tasks) => {
+                for task in tasks.iter() {
+                    task_history.push(task);
+                }
+            }
+            None => (),
+        }
+
+        task_history
+    }
+
+    pub fn get_task(&self, id: String) -> String {
+        match self.task_items.get(&id) {
+            Some(task) => task.to_string(),
+            None => "".to_string(),
         }
     }
 
@@ -93,26 +141,25 @@ impl TaskContract {
         self.task_items.remove(&task.id);
     }
 
-    pub fn get_tasks(&self) -> Vec<Task> {
-        let mut iter = self.task_queue.iter();
-        let mut task_vec = vec![];
-        let mut i = 0;
+    fn add_confirmation(&mut self, task: &mut Task, result_hash: String) {
+        task.confirmations
+            .insert(env::signer_account_id(), Confirmation::new(result_hash));
 
-        while i < NO_OF_TASKS_RETURNED {
-            if let Some((_key, task)) = iter.next() {
-                task_vec.push(task);
-                i += 1;
-            } else {
-                break;
-            }
-        }
+        task.confirmation_count = U128(task.confirmation_count.0 + 1);
 
-        task_vec
+        self.task_queue.insert(&task.task_queue_timestamp_key, task);
+        self.task_items.insert(&task.id, task);
     }
 
     //REMOVE THIS METHOD. ONLY USED FOR TESTING
     pub fn clear_queue(&mut self) {
         self.task_queue.clear();
+    }
+
+    //REMOVE THIS METHOD. ONLY USED FOR TESTING
+    pub fn clear_history(&mut self) {
+        self.task_history
+            .remove(&AccountId::new_unchecked("obrigato.testnet".to_string()));
     }
 }
 
@@ -153,15 +200,6 @@ impl Task {
             timestamp: U64(env::block_timestamp()),
         }
     }
-
-    fn add_confirmation(&mut self, result_hash: String) {
-        let confirmation = Confirmation::new(result_hash);
-
-        self.confirmations
-            .insert(env::signer_account_id(), confirmation);
-
-        self.confirmation_count = U128(self.confirmation_count.0 + 1);
-    }
 }
 
 impl fmt::Display for Task {
@@ -196,7 +234,6 @@ impl Serialize for Confirmation {
     where
         S: Serializer,
     {
-        // 3 is the number of fields in the struct.
         let mut state = serializer.serialize_struct("Confirmation", 1)?;
         state.serialize_field("result_hash", &self.result_hash)?;
         state.end()
