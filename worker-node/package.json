@@ -1,0 +1,24 @@
+{
+  "name": "worker-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "decompress": "^4.2.1",
+    "decompress-unzip": "^4.0.1",
+    "execa": "^8.0.1",
+    "ipfs-http-client": "^60.0.1",
+    "near-api-js": "^2.1.4",
+    "python-shell": "^5.0.0"
+  },
+  "devDependencies": {
+    "@babel/helper-compilation-targets": "^7.22.15"
+  }
+}
