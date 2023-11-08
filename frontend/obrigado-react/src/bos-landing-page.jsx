@@ -1,11 +1,14 @@
 const contract = "obrigado.testnet";
 const greeting = Near.view(contract, "get_tasks", {});
 
-State.init({ tasks: [] });
-
 const fontUrl = `https://ipfs.io/ipfs/bafkreicrs3gh7f77yhpw4xiejx35cd56jcczuhvqbwkn77g2ztkrjejopa`;
 
 const css = `
+
+body {
+  display: inline-block;
+}
+
 @font-face {
     font-family: "Pixter";
     src: url("${fontUrl}");
@@ -98,11 +101,9 @@ a, a:focus, a:visited, a:hover {
 
 .header {
   align-content: center;
-  margin: 0 auto;
-  background-color: red;
+  margin: 100px auto auto auto;
     overflow: hidden;
     height: 600px;
-    filter: contrast(1.2);
     background-image: url('https://bafybeicc3wlqrkisg2k7ibwss5wlusxfoq7intpgwmhcm4r7ck27fd5eym.ipfs.nftstorage.link/');
     background-size: cover;
     > div {
@@ -188,8 +189,10 @@ const Theme = state.theme;
 // ];
 const featured = [];
 
+State.init({ tasks: [], task_bounty: Number(10), task_url: ""});
+
 const onBountyInputChange = ({ target }) => {
-  State.update({ task_bounty: target.value });
+  State.update({ task_bounty: Number(target.value) });
 };
 const onTaskUrlInputChange = ({ target }) => {
   State.update({ task_url: target.value });
@@ -210,8 +213,8 @@ const onSubmitTaskClick = () => {
   //   return;
   // }
 
-  Near.call(contract, "submit_task", {
-    task_url: state.task_url, 
+  Near.call(contract, "create_task", {
+    repository_url: state.task_url, 
     bounty: state.task_bounty
   });
 };
