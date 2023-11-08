@@ -21,3 +21,5 @@ Cargo.lock
 node_modules
 .DS_store
 venv
+train.bin
+val.bin
