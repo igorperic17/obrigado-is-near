@@ -110,22 +110,22 @@ async function listenToJobQueue() {
 
     // TODO: uncomment below to actually listen to the queue
     // TODO: add the changes above to cetch the console logs and package them
-//   const near = await connect(nearConfig);
-//   const wallet = near.account(nearConfig.contractName);
-//   const contract = new Contract(wallet, nearConfig.contractName, {
-//     viewMethods: ['get_tasks'],
-//     changeMethods: ['submit_task_result'],
-//   });
+    const near = await connect(nearConfig);
+    const wallet = near.account(nearConfig.contractName);
+    const contract = new Contract(wallet, nearConfig.contractName, {
+        viewMethods: ['get_tasks'],
+        changeMethods: ['submit_task_result'],
+    });
 
-//   // Polling for new tasks
-//   setInterval(async () => {
-//     const tasks = await contract.get_tasks({ from_index: 0, limit: 100 });
-//     for (const [taskId, task] of tasks) {
-//       if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
-//         await processTask(contract, taskId, task);
-//       }
-//     }
-//   }, 10000); // Poll every 10 seconds
+    // Polling for new tasks
+    setInterval(async () => {
+        const tasks = await contract.get_tasks({ from_index: 0, limit: 100 });
+        for (const [taskId, task] of tasks) {
+        if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
+            await processTask(contract, taskId, task);
+        }
+        }
+    }, 10000); // Poll every 10 seconds
 }
 
 listenToJobQueue().then(() => {
