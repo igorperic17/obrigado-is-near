@@ -9,7 +9,7 @@ use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
-const MINIMUM_CONFIRMATION_COUNT: U128 = U128(1);
+const MINIMUM_CONFIRMATION_COUNT: U128 = U128(2);
 const TASK_ID_LENGTH: u32 = 12;
 const NO_OF_TASKS_RETURNED: u64 = 10;
 const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
