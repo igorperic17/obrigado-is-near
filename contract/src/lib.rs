@@ -308,27 +308,3 @@ fn generate_task_id() -> String {
 
     format!("{}-{}", env::block_timestamp().to_string(), random_string)
 }
-
-// impl Display for Confirmation {
-//     fn fmt(&self, f: &mut Formatter) -> Result {
-//         write!(f, "{{ result_hash: {} }}", self.result_hash)
-//     }
-// }
-
-// impl Serialize for Task {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         // 3 is the number of fields in the struct.
-//         let mut state = serializer.serialize_struct("Task", 8)?;
-//         state.serialize_field("submitter_account_id", &self.submitter_account_id)?;
-//         state.serialize_field("bounty", &self.bounty)?;
-//         state.serialize_field("repository_url", &self.repository_url)?;
-//         state.serialize_field("confirmation_count", &self.confirmation_count)?;
-//         state.serialize_field("confirmations", &self.confirmations)?;
-//         state.serialize_field("id", &self.id)?;
-//         state.serialize_field("timestamp", &self.timestamp)?;
-//         state.end()
-//     }
-// }
