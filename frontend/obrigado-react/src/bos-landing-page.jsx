@@ -1,5 +1,5 @@
 const contract = "obrigado.testnet";
-const greeting = Near.view(contract, "get_tasks", {});
+const tasks = Near.view(contract, "get_tasks", {});
 
 const fontUrl = `https://ipfs.io/ipfs/bafkreicrs3gh7f77yhpw4xiejx35cd56jcczuhvqbwkn77g2ztkrjejopa`;
 
@@ -25,11 +25,6 @@ a, a:focus, a:visited, a:hover {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
-.flex {
-  display: flex;
-  align-items: center;
-}
-
 .flex-right {
   padding-left: 16px;
   > p {
@@ -43,64 +38,9 @@ a, a:focus, a:visited, a:hover {
   color: #888 !important;
 }
 
-.image-parent {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  > .shadow {
-    width: 80%;
-    height: 80%;
-    box-shadow: 0 0 32px rgba(255, 255, 255, 1) !important;
-    position: absolute;
-    top: 10%;
-    left: 10%;
-    z-index: 1;
-  }
-  > .eth-logo {
-    z-index: 3;
-    position: absolute;
-    bottom: -10px;
-    right: -10px;
-    > img {
-
-    width: 40px;
-    height: 40px;
-    }
-  }
-}
-
-.image-container {
-  z-index: 2;
-  width: 100px;
-  height: 100px;
-  position: absolute;
-  top: 0;
-  left: 0;
- clip-path: polygon(
-    0 10%,
-    10% 10%,
-    10% 0,
-    90% 0,
-    90% 10%,
-    100% 10%,
-    100% 90%,
-    90% 90%,
-    90% 100%,
-    10% 100%,
-    10% 90%,
-    0% 90%,
-    0% 10%
-  );
- > img {
-  height: 100%;
-  object-fit: contain;
-  overflow: hidden;
-  background: white;
- }
-}
-
 .header {
   align-content: center;
+  flex: 1;
   margin: 100px auto auto auto;
     overflow: hidden;
     height: 600px;
@@ -209,27 +149,30 @@ const onTaskUrlInputChange = ({ target }) => {
 // };
 
 const onSubmitTaskClick = () => {
-  // if (!state.new_greeting) {
-  //   return;
-  // }
-
   Near.call(contract, "create_task", {
     repository_url: state.task_url, 
     bounty: state.task_bounty
   });
 };
 
+const onClearQueueClick = () => {
+  Near.call(contract, "clear_queue", {});
+};
+
 // const greeting = Near.call(contract, "add_task", {});
 
 const submitTaskComponent = (
   <>
-    <div className="mb-2">
+    <div className="mb-2 width-[300px]">
       <div className="border border-black p-3">
         <label>Task</label>
-        <input className="p-2 m-2 rounded-full" placeholder="Wokspace location" onChange={onTaskUrlInputChange} />
-        <input className="p-2 m-2 rounded-full" placeholder="Bounty" onChange={onBountyInputChange} />
+        <input className="p-2 m-2 rounded-full" placeholder="Wokspace location" onChange={onTaskUrlInputChange} value={state.task_url}/>
+        <input className="p-2 m-2 rounded-full" placeholder="Bounty" onChange={onBountyInputChange} value={state.bounty}/>
         <button className="btn btn-primary mt-2" onClick={onSubmitTaskClick}>
           Submit
+        </button>
+        <button className="btn btn-primary mt-2" onClick={onClearQueueClick}>
+          Clear Queue
         </button>
       </div>
     </div>

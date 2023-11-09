@@ -4,12 +4,15 @@ import decompress from 'decompress';
 import { PythonShell } from 'python-shell';
 import fs from 'fs';
 import { create } from 'ipfs-http-client';
-import { execa } from 'execa';
+import { exec } from 'child_process';
 
+const projectId = "2Xv5JJtzWWVdnZnA6ZMg9wo6Uif";
+const projectSecret = "b9752e5f1a396a1c3ba2277951427b10";
+
+const auth = 'Basic ' + Buffer.from(projectId + ':' + projectSecret).toString('base64');
+const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https', headers: { authorization: auth }});
 
 const keyStore = new keyStores.UnencryptedFileSystemKeyStore('C:/Users/joaov/.near-credentials');
-
-const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https' });
 const nearConfig = {
   networkId: 'testnet',
   keyStore: keyStore,
@@ -20,7 +23,7 @@ const nearConfig = {
 
 // Function to download and extract the workspace
 async function downloadAndPrepareWorkspace(url, taskId) {
-  const workspaceDir = `./workspaces/${taskId}`;
+  const workspaceDir = `${process.cwd()}/workspaces/${taskId}`;
   if (!fs.existsSync(workspaceDir)) {
     fs.mkdirSync(workspaceDir, { recursive: true });
   }
@@ -38,25 +41,48 @@ async function downloadAndPrepareWorkspace(url, taskId) {
 
 async function prepareWorkspace(workspaceDir) {
   // Create a Python virtual environment
-  console.log(workspaceDir);
-  await execa('python3', ['-m', 'venv', 'venv'], { cwd: workspaceDir });
+  
+  const command = `cd ${workspaceDir} && python3 -m venv venv`;
+  exec(command, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`Stderr: ${stderr}`);
+      return;
+    }
+    console.log(`Stdout: ${stdout}`);
+  });
 
   // Install dependencies from requirements.txt
-  await execa('./venv/bin/pip', ['install', '-r', 'requirements.txt'], { cwd: workspaceDir });
+  const command2 = `cd ${workspaceDir} && ./venv/bin/pip install -r requirements.txt`;
+  exec(command2, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`Stderr: ${stderr}`);
+      return;
+    }
+    console.log(`Stdout: ${stdout}`);
+  });
 }
 
 // Function to execute the Python script
-async function executePythonScript(workspaceDir, entryScript) {
-    return new Promise((resolve, reject) => {
-      PythonShell.run(`${workspaceDir}/${entryScript}`, { pythonPath: `${workspaceDir}/venv/bin/python` }, (err, results) => {
-        if (err) {
-          console.error('Error running Python script:', err);
-          reject(err);
-        } else {
-          console.log('Results from Python script:', results);
-          resolve(results);
+function executePythonScript(workspaceDir, entryScript) {
+    const command = `cd ${workspaceDir} && . venv/bin/activate && python ${entryScript}`;
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+        console.error(`Error: ${error.message}`);
+        return;
         }
-      });
+        if (stderr) {
+        console.error(`Stderr: ${stderr}`);
+        return;
+        }
+        console.log(`Stdout: ${stdout}`);
     });
   }
 
@@ -64,8 +90,18 @@ async function executePythonScript(workspaceDir, entryScript) {
 async function uploadResultsToIPFS(workspaceDir) {
   const resultsDir = `${workspaceDir}/results`;
   // Zip the results directory
-  const { stdout } = await execa('zip', ['-r', 'results.zip', '.'], { cwd: resultsDir });
-  console.log(stdout);
+  const command2 = `cd ${resultsDir} && zip -r results.zip .`;
+  exec(command2, (error, stdout, stderr) => {
+      if (error) {
+      console.error(`Error: ${error.message}`);
+      return;
+      }
+      if (stderr) {
+      console.error(`Stderr: ${stderr}`);
+      return;
+      }
+      console.log(`Stdout: ${stdout}`);
+  });
 
   // Read the zipped file
   const file = fs.readFileSync(`${resultsDir}/results.zip`);
@@ -86,7 +122,7 @@ async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
 async function processTask(contract, task) {
   try {
     const workspaceDir = await downloadAndPrepareWorkspace(task.repository_url, task.id);
-    await executePythonScript(workspaceDir, 'main.py');
+    executePythonScript(workspaceDir, 'main.py');
     const { url, hash } = await uploadResultsToIPFS(workspaceDir);
     await submitResultToContract(contract, task.id, url, hash);
   } catch (error) {
