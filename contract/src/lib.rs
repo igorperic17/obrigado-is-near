@@ -17,9 +17,9 @@ const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct TaskContract {
-    // Provides an ordered data structure with O(1) look-up, O(log N) insert/remove operations
+    // Provides an ordered queue with O(1) look up, O(log N) insert/remove operations
     task_queue: TreeMap<String, Task>,
-    // Store users' completed task history, O(1) look-up
+    // Store and retrieve users' completed task history with O(1) look up, O(1) insert/remove operations
     task_history: LookupMap<AccountId, Vector<Task>>,
 }
 
