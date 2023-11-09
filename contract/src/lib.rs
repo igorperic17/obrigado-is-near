@@ -9,7 +9,7 @@ use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
-const MINIMUM_CONFIRMATION_COUNT: U128 = U128(1);
+const MINIMUM_CONFIRMATION_COUNT: U128 = U128(2);
 const TASK_ID_LENGTH: u32 = 12;
 const NO_OF_TASKS_RETURNED: u64 = 10;
 const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
@@ -17,15 +17,15 @@ const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct TaskContract {
-    // Provides an ordered data structure with O(N) lookup, O(log N) insert/remove operations
+    // Provides an ordered queue with O(1) look up, O(log N) insert/remove operations
     task_queue: TreeMap<String, Task>,
-    // Store users' completed task history
+    // Store and retrieve users' completed task history with O(1) look up, O(1) insert/remove operations
     task_history: LookupMap<AccountId, Vector<Task>>,
 }
 
 #[near_bindgen]
 impl TaskContract {
-    // Create a new compute Task and add it to the queue
+    // Create a new compute task and add it to the queue
     // #[payable] is required as env::attached_deposit() (bounty) is required
     #[payable]
     pub fn create_task(&mut self, repository_url: String) -> String {
@@ -52,7 +52,7 @@ impl TaskContract {
         result_hash: String,
         result_url: String,
     ) -> String {
-        // If the item is no longer in task_items it has already been fulfilled or the task_id is incorrect:
+        // If the item is no longer in task_queue it has already been fulfilled or the task_id is incorrect:
         if !self.task_queue.contains_key(&task_id) {
             near_log_return(format!(
                 "Task: {} does not exist. The task may have alread been fulfilled or the task_id could be incorrect.",
@@ -63,10 +63,7 @@ impl TaskContract {
         match self.task_queue.get(&task_id) {
             Some(mut task) => {
                 // If the account hasn't already submitted a result for this task then add a confirmation:
-                if !task.confirmations.contains_key(&env::signer_account_id())
-                    || env::signer_account_id()
-                        == AccountId::new_unchecked("obrigado.testnet".to_string())
-                {
+                if !task.confirmations.contains_key(&env::signer_account_id()) {
                     near_log(format!("Adding result to task: {}", task_id));
 
                     self.add_confirmation(&mut task, result_hash, result_url);
@@ -126,11 +123,13 @@ impl TaskContract {
         near_log(format!("Moving task: {} to history", task.id));
 
         match self.task_history.get(&task.submitter_account_id) {
+            // Add the task to the useres history if it exists:
             Some(mut history) => {
                 history.push(&task);
                 self.task_history
                     .insert(&task.submitter_account_id, &history);
             }
+            // If the user has no history, create it and add the task:
             None => {
                 let mut history = Vector::new(Prefix::AccountTaskHistory(
                     task.submitter_account_id.clone(),
@@ -141,7 +140,7 @@ impl TaskContract {
             }
         }
 
-        // Remove the completed task from task_queue and task_items:
+        // Remove the completed task from task_queue:
         self.task_queue.remove(&task.id);
     }
 
@@ -195,7 +194,8 @@ impl TaskContract {
         }
     }
 
-    //ONLY USED FOR TESTING
+    // Only used for testing
+    #[private]
     pub fn clear_state(&mut self) {
         self.task_queue.clear();
         self.task_history
