@@ -114,8 +114,7 @@ async function uploadResultsToIPFS(workspaceDir) {
 
 // Function to submit the result to the smart contract
 async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
-  // Submit the result to the smart contract
-  // This is a placeholder function. You'll need to implement the actual contract call.
+    await contract.submit_result({ task_id: taskId, resultHash: resultHash });
 }
 
 // Function to process a task
@@ -160,7 +159,6 @@ async function listenToJobQueue() {
         // the sender is the worker, also the bounty hunter 
         sender: 'joaovascopestana.testnet',
     });
-
 
 
     // {

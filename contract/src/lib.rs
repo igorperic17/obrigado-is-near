@@ -41,7 +41,7 @@ impl TaskContract {
         format!("Task created successfully: {}", task)
     }
 
-    pub fn submit_result(&mut self, task_id: String, result_hash: String) -> String {
+    pub fn submit_result(&mut self, task_id: String, result_url: String, result_hash: String) -> String {
         // If the item is no longer in the task_items map it has already been fulfilled:
         if !self.task_items.contains_key(&task_id) {
             return "This task has already been fulfilled!".to_string();
@@ -54,7 +54,7 @@ impl TaskContract {
                     || env::signer_account_id()
                         == AccountId::new_unchecked("obrigado.testnet".to_string())
                 {
-                    self.add_confirmation(&mut task, result_hash);
+                    self.add_confirmation(&mut task, result_hash, result_url);
 
                     // If the task has noew reached the minimum number of required confirmations move the task to history and send NEAR to confirming accounts:
                     if task.confirmation_count >= MINIMUM_CONFIRMATION_COUNT {
@@ -141,9 +141,9 @@ impl TaskContract {
         self.task_items.remove(&task.id);
     }
 
-    fn add_confirmation(&mut self, task: &mut Task, result_hash: String) {
+    fn add_confirmation(&mut self, task: &mut Task, result_hash: String, result_url: String) {
         task.confirmations
-            .insert(env::signer_account_id(), Confirmation::new(result_hash));
+            .insert(env::signer_account_id(), Confirmation::new(result_hash, result_url));
 
         task.confirmation_count = U128(task.confirmation_count.0 + 1);
 
@@ -221,11 +221,12 @@ impl fmt::Display for Task {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Confirmation {
     result_hash: String,
+    result_url: String
 }
 
 impl Confirmation {
-    fn new(result_hash: String) -> Self {
-        Self { result_hash }
+    fn new(result_hash: String, result_url: String) -> Self {
+        Self { result_hash, result_url }
     }
 }
 
