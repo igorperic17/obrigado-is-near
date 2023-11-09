@@ -123,11 +123,13 @@ impl TaskContract {
         near_log(format!("Moving task: {} to history", task.id));
 
         match self.task_history.get(&task.submitter_account_id) {
+            // Add the task to the useres history if it exists:
             Some(mut history) => {
                 history.push(&task);
                 self.task_history
                     .insert(&task.submitter_account_id, &history);
             }
+            // If the user has no history, create it and add the task:
             None => {
                 let mut history = Vector::new(Prefix::AccountTaskHistory(
                     task.submitter_account_id.clone(),
@@ -138,7 +140,7 @@ impl TaskContract {
             }
         }
 
-        // Remove the completed task from task_queue and task_items:
+        // Remove the completed task from task_queue:
         self.task_queue.remove(&task.id);
     }
 
