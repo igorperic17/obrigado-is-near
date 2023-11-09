@@ -1,5 +1,5 @@
 const contract = "obrigado.testnet";
-const tasks = Near.view(contract, "get_tasks", {});
+const tasks = Near.view(contract, "get_tasks_from_queue", {})
 
 const fontUrl = `https://ipfs.io/ipfs/bafkreicrs3gh7f77yhpw4xiejx35cd56jcczuhvqbwkn77g2ztkrjejopa`;
 
@@ -136,6 +136,7 @@ const onBountyInputChange = ({ target }) => {
 };
 const onTaskUrlInputChange = ({ target }) => {
   State.update({ task_url: target.value });
+  console.log(tasks)
 };
 
 // const onBtnClick = () => {
@@ -158,12 +159,17 @@ const onSubmitTaskClick = () => {
 const onClearQueueClick = () => {
   Near.call(contract, "clear_queue", {});
 };
+const onRefreshQueueClick = () => {
+  const res = Near.call(contract, "get_tasks_from_queue", {});
+  State.update({ tasks: res });
+};
+
 
 // const greeting = Near.call(contract, "add_task", {});
 
 const submitTaskComponent = (
   <>
-    <div className="mb-2 width-[300px]">
+    <div className="mb-2 center flex">
       <div className="border border-black p-3">
         <label>Task</label>
         <input className="p-2 m-2 rounded-full" placeholder="Wokspace location" onChange={onTaskUrlInputChange} value={state.task_url}/>
@@ -202,66 +208,21 @@ return (
     </div>
 
     <div class="main">
-      <h3>Search tasks</h3>
+      {/* <h3>Search tasks</h3>
       <p class="gray">
         Discover a range of fully decentralized frontends that leverage the
         power of BOS.
-      </p>
-
-      <div>
-        {state.components && state.components.length > 0 && (
-          <div class="apps">
-            {state.components.map((component, i) => (
-              <div key={i} class="widget">
-                <div class="flex">
-                  <a href={`#/${component.widgetSrc}`} target="_blank">
-                    <div class="image-parent">
-                      <Widget
-                        src="mob.near/widget/WidgetImage"
-                        props={{
-                          accountId: component.accountId,
-                          widgetName: component.widgetName,
-                          alt: component.widgetName,
-                          className,
-                          style: {},
-                          fallbackUrl:
-                            "https://ipfs.near.social/ipfs/bafkreido7gsk4dlb63z3s5yirkkgrjs2nmyar5bxyet66chakt2h5jve6e",
-                        }}
-                      />
-                      <div class="shadow"></div>
-                      <div class="eth-logo">
-                        <img
-                          src={
-                            "https://bafybeicc3wlqrkisg2k7ibwss5wlusxfoq7intpgwmhcm4r7ck27fd5eym.ipfs.nftstorage.link/"
-                          }
-                        />
-                      </div>
-                    </div>
-                  </a>
-                  <div class="flex-right">
-                    <p>{component.widgetName}</p>
-                    <p class="subtle gray">Ethereum</p>
-                  </div>
-                </div>
-                <p>{component.description}</p>
-
-                <a
-                  href={`#/mob.near/widget/WidgetSource?src=${component.widgetSrc}`}
-                  target="_blank"
-                >
-                  <i className="bi bi-file-earmark-code me-1"></i>Source
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </p> */}
 
       <div class="mt-5">
-        <h3>Featured Apps</h3>
+        <h3>Task Queue</h3>
       </div>
       <div class="apps">
-        {featured.map((component, i) => (
+
+      <button className="btn btn-primary mt-2" onClick={onRefreshQueueClick}>
+          Refresh Task Queue
+        </button>
+        {state.tasks?.map((component, i) => (
           <div key={i} class="widget">
             <div class="flex">
               <a href={`#/${component.widgetSrc}`} target="_blank">

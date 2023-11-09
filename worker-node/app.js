@@ -5,6 +5,7 @@ import { PythonShell } from 'python-shell';
 import fs from 'fs';
 import { create } from 'ipfs-http-client';
 import { exec } from 'child_process';
+import { env } from 'process';
 
 const projectId = "2Xv5JJtzWWVdnZnA6ZMg9wo6Uif";
 const projectSecret = "b9752e5f1a396a1c3ba2277951427b10";
@@ -12,7 +13,8 @@ const projectSecret = "b9752e5f1a396a1c3ba2277951427b10";
 const auth = 'Basic ' + Buffer.from(projectId + ':' + projectSecret).toString('base64');
 const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https', headers: { authorization: auth }});
 
-const keyStore = new keyStores.UnencryptedFileSystemKeyStore('C:/Users/joaov/.near-credentials');
+const home_dir = env.HOME;
+const keyStore = new keyStores.UnencryptedFileSystemKeyStore(`${home_dir}/.near-credentials`);
 const nearConfig = {
   networkId: 'testnet',
   keyStore: keyStore,
@@ -27,6 +29,7 @@ async function downloadAndPrepareWorkspace(url, taskId) {
   if (!fs.existsSync(workspaceDir)) {
     fs.mkdirSync(workspaceDir, { recursive: true });
   }
+
   console.log("PROCESSING TASK MADAFAKAAAAAA");
   console.log(url);
   console.log(taskId);
@@ -114,7 +117,7 @@ async function uploadResultsToIPFS(workspaceDir) {
 
 // Function to submit the result to the smart contract
 async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
-    await contract.submit_result({ task_id: taskId, resultHash: resultHash });
+    await contract.submit_result({ task_id: taskId, result_hash: resultHash, result_url: resultUrl });
 }
 
 // Function to process a task
@@ -151,13 +154,22 @@ async function listenToJobQueue() {
 
     // TODO: uncomment below to actually listen to the queue
     // TODO: add the changes above to cetch the console logs and package them
+
+    let accountId = null;
+    // Loop through the arguments
+    process.argv.forEach((val, index) => {
+    // Check if the argument is 'accountId'
+    if (val.startsWith('--accountId=')) {
+        accountId = val.split('=')[1];
+    }
+    });
     const near = await connect(nearConfig);
-    const wallet = await near.account('joaovascopestana.testnet');
+    const wallet = await near.account(accountId);
     const contract = new Contract(wallet, nearConfig.contractName, { //nearConfig.contractName
         viewMethods: ['get_tasks_from_queue'],
         changeMethods: ['submit_result'],
         // the sender is the worker, also the bounty hunter 
-        sender: 'joaovascopestana.testnet',
+        sender: accountId,
     });
 
 
@@ -172,25 +184,43 @@ async function listenToJobQueue() {
     //   timestamp: '1699480703646659420'
     // },
 
-    // Polling for new tasks
-    setInterval(async () => {
-        const tasks = await contract.get_tasks_from_queue({ });
-        // console.log(tasks);
-        for (let i = 0; i<tasks.length; i++) {
-          const task = tasks[i];
-          console.log(task);
-          if (!Object.values(task.confirmations).some(r => r.submitter === wallet.accountId)) {
-              await processTask(contract, task);
-          }
-        }
-    }, 1000); // Poll every 1 seconds
+    let isJobRunning = false;
 
-        // console.log(tasks);
-        // for (const [taskId, task] of tasks) {
-        //   if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
-        //       await processTask(contract, taskId, task);
-        //   }
-        // }
+    const processTasks = async () => {
+        if (isJobRunning) {
+            console.log("Running task exists, skipping the fetch...");
+            scheduleNextCheck();
+            return;
+        }
+
+        isJobRunning = true;
+        console.log("No running tasks, fetching the task queue...");
+
+        try {
+            const tasks = await contract.get_tasks_from_queue({});
+            // console.log(tasks);
+
+            for (let i = 0; i < tasks.length; i++) {
+                const task = tasks[i];
+                if (!Object.keys(task.confirmations).some(r => r === wallet.accountId)) {
+                    console.log("Starting the task execution...");
+                    await processTask(contract, task);
+                    break; // Exit the loop after one task is processed
+                }
+            }
+        } catch (error) {
+            console.error("An error occurred while processing tasks:", error);
+        } finally {
+            isJobRunning = false;
+            scheduleNextCheck(); // Schedule the next check after the current task has been processed or an error has occurred
+        }
+    };
+
+    const scheduleNextCheck = () => {
+        setTimeout(processTasks, 1000); // Schedule the next check after 1 second
+    };
+
+    scheduleNextCheck(); // Start the initial
 
     // // submit_result(&mut self, task_id: String, result_hash: String)
     // // `contract.methodName({ args, gas?, amount?, callbackUrl?, meta? })`
