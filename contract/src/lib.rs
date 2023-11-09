@@ -17,15 +17,15 @@ const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct TaskContract {
-    // Provides an ordered data structure with O(N) lookup, O(log N) insert/remove operations
+    // Provides an ordered data structure with O(1) look-up, O(log N) insert/remove operations
     task_queue: TreeMap<String, Task>,
-    // Store users' completed task history
+    // Store users' completed task history, O(1) look-up
     task_history: LookupMap<AccountId, Vector<Task>>,
 }
 
 #[near_bindgen]
 impl TaskContract {
-    // Create a new compute Task and add it to the queue
+    // Create a new compute task and add it to the queue
     // #[payable] is required as env::attached_deposit() (bounty) is required
     #[payable]
     pub fn create_task(&mut self, repository_url: String) -> String {
@@ -52,7 +52,7 @@ impl TaskContract {
         result_hash: String,
         result_url: String,
     ) -> String {
-        // If the item is no longer in task_items it has already been fulfilled or the task_id is incorrect:
+        // If the item is no longer in task_queue it has already been fulfilled or the task_id is incorrect:
         if !self.task_queue.contains_key(&task_id) {
             near_log_return(format!(
                 "Task: {} does not exist. The task may have alread been fulfilled or the task_id could be incorrect.",
