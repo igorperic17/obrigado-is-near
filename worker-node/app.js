@@ -6,12 +6,12 @@ import fs from 'fs';
 import { create } from 'ipfs-http-client';
 import { exec } from 'child_process';
 import { env } from 'process';
+import { promises as fs2 } from 'fs';
 
 const projectId = "2Xv5JJtzWWVdnZnA6ZMg9wo6Uif";
 const projectSecret = "b9752e5f1a396a1c3ba2277951427b10";
 
 const auth = 'Basic ' + Buffer.from(projectId + ':' + projectSecret).toString('base64');
-const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https', headers: { authorization: auth }});
 
 const home_dir = env.HOME;
 const keyStore = new keyStores.UnencryptedFileSystemKeyStore(`${home_dir}/.near-credentials`);
@@ -37,84 +37,108 @@ async function downloadAndPrepareWorkspace(url, taskId) {
   const response = await axios({ url, responseType: 'arraybuffer' });
   await decompress(response.data, workspaceDir);
 
-  prepareWorkspace(workspaceDir)
+  await prepareWorkspace(workspaceDir)
 
   return workspaceDir;
 }
 
-async function prepareWorkspace(workspaceDir) {
-  // Create a Python virtual environment
-  
-  const command = `cd ${workspaceDir} && python3 -m venv venv`;
-  exec(command, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.error(`Stderr: ${stderr}`);
-      return;
-    }
-    console.log(`Stdout: ${stdout}`);
-  });
-
-  // Install dependencies from requirements.txt
-  const command2 = `cd ${workspaceDir} && ./venv/bin/pip install -r requirements.txt`;
-  exec(command2, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.error(`Stderr: ${stderr}`);
-      return;
-    }
-    console.log(`Stdout: ${stdout}`);
-  });
-}
-
-// Function to execute the Python script
-function executePythonScript(workspaceDir, entryScript) {
-    const command = `cd ${workspaceDir} && . venv/bin/activate && python ${entryScript}`;
-    exec(command, (error, stdout, stderr) => {
+// Helper function to execute a shell command and return a promise
+function executeCommand(command, module_name) {
+    return new Promise((resolve, reject) => {
+      exec(command, (error, stdout, stderr) => {
         if (error) {
-        console.error(`Error: ${error.message}`);
-        return;
+          console.error(`LOG: ${module_name} --> Error: ${error.message}`);
+          reject(error);
+          return;
         }
         if (stderr) {
-        console.error(`Stderr: ${stderr}`);
-        return;
+          console.error(`LOG: ${module_name} --> Stderr: ${stderr}`);
+          reject(new Error(stderr));
+          return;
         }
-        console.log(`Stdout: ${stdout}`);
+        console.log(`LOG: ${module_name} --> Stdout: ${stdout}`);
+        resolve(stdout);
+      });
     });
+  }
+  
+  // Async function to prepare the workspace
+  async function prepareWorkspace(workspaceDir) {
+    try {
+
+    console.log("creating venv");   
+        
+     const command_pip = `cd ${workspaceDir} && ./venv/bin/pip install --upgrade pip`;
+      // Create a Python virtual environment
+      const command1 = `cd ${workspaceDir} && python3 -m venv venv`;
+      await executeCommand(command1, "create env");
+  
+      console.log("installing requirements");
+      // Install dependencies from requirements.txt
+        await executeCommand(command_pip, "pip upgrade");
+      const command2 = `cd ${workspaceDir} && ./venv/bin/pip install -r requirements.txt`;
+      
+      await executeCommand(command2, "install req");
+  
+      console.log('Workspace prepared successfully.');
+    } catch (error) {
+      console.error(`An error occurred while preparing the workspace: ${error.message}`);
+      throw error; // Rethrow the error to be handled by the caller
+    }
+  }
+
+function executePythonScript(workspaceDir, entryScript) {
+   const command = `cd ${workspaceDir} && . venv/bin/activate && python ${entryScript}`;
+   return executeCommand(command, "executePythonScript");
   }
 
 // Function to upload results to IPFS
-async function uploadResultsToIPFS(workspaceDir) {
-  const resultsDir = `${workspaceDir}/results`;
-  // Zip the results directory
-  const command2 = `cd ${resultsDir} && zip -r results.zip .`;
-  exec(command2, (error, stdout, stderr) => {
-      if (error) {
-      console.error(`Error: ${error.message}`);
-      return;
-      }
-      if (stderr) {
-      console.error(`Stderr: ${stderr}`);
-      return;
-      }
-      console.log(`Stdout: ${stdout}`);
-  });
-
-  // Read the zipped file
-  const file = fs.readFileSync(`${resultsDir}/results.zip`);
-  const added = await ipfs.add(file);
-  const url = `https://ipfs.infura.io/ipfs/${added.path}`;
-  const hash = added.cid.toString();
-
-  return { url, hash };
-}
-
+async function uploadResultsToIPFS(workspaceDir, ipfs) {
+    const resultsDir = `${workspaceDir}/results`;
+  
+    // Wrap the exec call in a promise to handle the zipping process asynchronously
+    const zipResults = () => {
+        return new Promise((resolve, reject) => {
+          const command = `cd ${resultsDir} && zip -r results.zip .`;
+          exec(command, (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error: ${error.message}`);
+              reject(error);
+              return;
+            }
+            if (stderr) {
+              console.error(`Stderr: ${stderr}`);
+              reject(new Error(stderr));
+              return;
+            }
+            console.log(`Stdout: ${stdout}`);
+            // Resolve with the path to the zipped file, not the command output
+            resolve(`${resultsDir}/results.zip`);
+          });
+        });
+      };
+  
+    try {
+      // Await the zipping process to complete
+      const zippedFilePath = await zipResults();
+      console.log("done zipping");
+      console.log(zippedFilePath);
+  
+      // Read the zipped file asynchronously
+      const file = await fs2.readFile(zippedFilePath);
+      console.log("about to upload");
+      const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https', headers: { authorization: auth }});
+      const added = await ipfs.add(file);
+      console.log("done uploading");
+      const url = `https://ipfs.infura.io/ipfs/${added.path}`;
+      const hash = added.cid.toString();
+  
+      return { url, hash };
+    } catch (error) {
+      console.error(`An error occurred: ${error.message}`);
+      throw error; // Rethrow the error to be handled by the caller
+    }
+  }
 // Function to submit the result to the smart contract
 async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
     await contract.submit_result({ task_id: taskId, result_hash: resultHash, result_url: resultUrl });
@@ -124,9 +148,13 @@ async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
 async function processTask(contract, task) {
   try {
     const workspaceDir = await downloadAndPrepareWorkspace(task.repository_url, task.id);
-    executePythonScript(workspaceDir, 'main.py');
+    console.log("job prepare done");
+    await executePythonScript(workspaceDir, 'main.py');
+    console.log("job execution finished");
     const { url, hash } = await uploadResultsToIPFS(workspaceDir);
+    console.log("results uploaded");
     await submitResultToContract(contract, task.id, url, hash);
+    console.log("results on blockchain");
   } catch (error) {
     console.error('Error processing task:', error);
   }
