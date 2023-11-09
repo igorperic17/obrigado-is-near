@@ -9,71 +9,153 @@ use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
-const MINIMUM_CONFIRMATION_COUNT: U128 = U128(3);
+const MINIMUM_CONFIRMATION_COUNT: U128 = U128(1);
 const TASK_ID_LENGTH: u32 = 12;
 const NO_OF_TASKS_RETURNED: u64 = 10;
+const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct TaskContract {
-    // Provides an ordered data structure with O(log N) insert/remove operations
+    // Provides an ordered data structure with O(N) lookup, O(log N) insert/remove operations
     task_queue: TreeMap<String, Task>,
-    // Provides task lookup in O(n)
-    task_items: LookupMap<String, Task>,
     // Store users' completed task history
     task_history: LookupMap<AccountId, Vector<Task>>,
 }
 
 #[near_bindgen]
 impl TaskContract {
-    pub fn create_task(&mut self, bounty: Balance, repository_url: String) -> String {
-        // Create task's key for the task_queue. Created from timestamp + account Id.
-        let task_queue_timestamp_key = format!(
-            "{}-{}",
-            env::block_timestamp().to_string(),
-            env::signer_account_id()
-        );
-        let task = Task::new(bounty, repository_url, task_queue_timestamp_key.clone());
+    // Create a new compute Task and add it to the queue
+    // #[payable] is required as env::attached_deposit() (bounty) is required
+    #[payable]
+    pub fn create_task(&mut self, repository_url: String) -> String {
+        let attached_bounty = env::attached_deposit();
 
-        self.task_queue.insert(&task_queue_timestamp_key, &task);
-        self.task_items.insert(&task.id, &task);
-
-        format!("Task created successfully: {}", task)
-    }
-
-    pub fn submit_result(&mut self, task_id: String, result_url: String, result_hash: String) -> String {
-        // If the item is no longer in the task_items map it has already been fulfilled:
-        if !self.task_items.contains_key(&task_id) {
-            return "This task has already been fulfilled!".to_string();
+        if attached_bounty < MINIMUM_BOUNTY {
+            return near_log_return(format!(
+                "Attached deposit for bounty must be at least {}, but was only {}",
+                MINIMUM_BOUNTY, attached_bounty
+            ));
         }
 
-        match self.task_items.get(&task_id) {
+        let task = Task::new(attached_bounty, repository_url);
+        near_log(format!("Created task: {}", task.id));
+
+        self.task_queue.insert(&task.id, &task);
+
+        near_log_return(format!("Task: {} created and added to state", task))
+    }
+
+    pub fn submit_result(
+        &mut self,
+        task_id: String,
+        result_hash: String,
+        result_url: String,
+    ) -> String {
+        // If the item is no longer in task_items it has already been fulfilled or the task_id is incorrect:
+        if !self.task_queue.contains_key(&task_id) {
+            near_log_return(format!(
+                "Task: {} does not exist. The task may have alread been fulfilled or the task_id could be incorrect.",
+                task_id
+            ));
+        }
+
+        match self.task_queue.get(&task_id) {
             Some(mut task) => {
-                // If the account hasn't already submitted a result for this task add a confirmation:
+                // If the account hasn't already submitted a result for this task then add a confirmation:
                 if !task.confirmations.contains_key(&env::signer_account_id())
                     || env::signer_account_id()
                         == AccountId::new_unchecked("obrigado.testnet".to_string())
                 {
+                    near_log(format!("Adding result to task: {}", task_id));
+
                     self.add_confirmation(&mut task, result_hash, result_url);
 
-                    // If the task has noew reached the minimum number of required confirmations move the task to history and send NEAR to confirming accounts:
+                    near_log(format!(
+                        "Result submitted to task: {} successfully for user {}",
+                        task_id,
+                        env::signer_account_id()
+                    ));
+
+                    // If the task has reached the minimum number of required confirmations move the task to history and send NEAR to confirming accounts:
                     if task.confirmation_count >= MINIMUM_CONFIRMATION_COUNT {
+                        near_log(format!(
+                            "Task: {} has reached confirmation count. Adding task to task_history for user: {} and distributing funds", 
+                            task.id,
+                            task.submitter_account_id
+                        ));
+
                         let payout = task.bounty / task.confirmation_count.0;
 
                         for account in task.confirmations.keys() {
                             Promise::new(account.clone()).transfer(payout);
                         }
 
+                        near_log(format!(
+                            "All accounts paid {} for task: {}",
+                            payout, task.id
+                        ));
+
                         self.move_task_to_history(task);
+
+                        return near_log_return(format!(
+                            "Result submitted to task: {} successfully for user {}. Confirmation count met so bounty has been distrubuted.",
+                            task_id,
+                            env::signer_account_id()
+                        ));
                     }
 
-                    "Result submitted successfully!".to_string()
+                    near_log_return(format!(
+                        "Result submitted to task: {} successfully for user {}.",
+                        task_id,
+                        env::signer_account_id()
+                    ))
                 } else {
-                    "You have already submitted a result for this task!".to_string()
+                    near_log_return(format!(
+                        "User {} has already submitted a result for task: {}",
+                        env::signer_account_id(),
+                        task_id
+                    ))
                 }
             }
-            None => "This task has already been fulfilled!".to_string(),
+            None => near_log_return(format!("Task: {} cannont be found", task_id)),
         }
+    }
+
+    fn move_task_to_history(&mut self, task: Task) {
+        near_log(format!("Moving task: {} to history", task.id));
+
+        // If the task submitter has no history yet, create an empty history vector:
+        if !self.task_history.contains_key(&task.submitter_account_id) {
+            self.task_history.insert(
+                &task.submitter_account_id,
+                &Vector::new(Prefix::AccountTaskHistory(
+                    task.submitter_account_id.clone(),
+                )),
+            );
+        }
+
+        // Add the task to the submitters history.
+        match self.task_history.get(&task.submitter_account_id) {
+            Some(mut history) => {
+                history.push(&task);
+            }
+            None => (),
+        }
+
+        // Remove the completed task from task_queue and task_items:
+        self.task_queue.remove(&task.id);
+    }
+
+    fn add_confirmation(&mut self, task: &mut Task, result_hash: String, result_url: String) {
+        task.confirmations.insert(
+            env::signer_account_id(),
+            Confirmation::new(result_hash, result_url),
+        );
+
+        task.confirmation_count = U128(task.confirmation_count.0 + 1);
+
+        self.task_queue.insert(&task.id, task);
     }
 
     pub fn get_tasks_from_queue(&self) -> Vec<Task> {
@@ -108,56 +190,16 @@ impl TaskContract {
         task_history
     }
 
-    pub fn get_task(&self, id: String) -> String {
-        match self.task_items.get(&id) {
+    pub fn get_task(&self, task_id: String) -> String {
+        match self.task_queue.get(&task_id) {
             Some(task) => task.to_string(),
             None => "".to_string(),
         }
     }
 
-    fn move_task_to_history(&mut self, task: Task) {
-        let task_queue_timestamp_key = task.task_queue_timestamp_key.clone();
-
-        // If the task submitter has no history yet, create an empty history vector:
-        if !self.task_history.contains_key(&task.submitter_account_id) {
-            self.task_history.insert(
-                &task.submitter_account_id,
-                &Vector::new(Prefix::AccountTaskHistory(
-                    task.submitter_account_id.clone(),
-                )),
-            );
-        }
-
-        // Add the task to the submitters history.
-        match self.task_history.get(&task.submitter_account_id) {
-            Some(mut history) => {
-                history.push(&task);
-            }
-            None => (),
-        }
-
-        // Remove the completed task from task_queue and task_items:
-        self.task_queue.remove(&task_queue_timestamp_key);
-        self.task_items.remove(&task.id);
-    }
-
-    fn add_confirmation(&mut self, task: &mut Task, result_hash: String, result_url: String) {
-        task.confirmations
-            .insert(env::signer_account_id(), Confirmation::new(result_hash, result_url));
-
-        task.confirmation_count = U128(task.confirmation_count.0 + 1);
-
-        self.task_queue.insert(&task.task_queue_timestamp_key, task);
-        self.task_items.insert(&task.id, task);
-    }
-
     //REMOVE THIS METHOD. ONLY USED FOR TESTING
-    pub fn clear_queue(&mut self) {
+    pub fn clear_state(&mut self) {
         self.task_queue.clear();
-    }
-
-    //REMOVE THIS METHOD. ONLY USED FOR TESTING
-    pub fn clear_history(&mut self) {
         self.task_history
             .remove(&AccountId::new_unchecked("obrigato.testnet".to_string()));
     }
@@ -167,7 +209,6 @@ impl Default for TaskContract {
     fn default() -> Self {
         Self {
             task_queue: TreeMap::new(Prefix::TaskQueue),
-            task_items: LookupMap::new(Prefix::TaskItems),
             task_history: LookupMap::new(Prefix::TaskHistory),
         }
     }
@@ -181,22 +222,18 @@ pub struct Task {
     confirmation_count: U128,
     confirmations: HashMap<AccountId, Confirmation>,
     id: String,
-    task_queue_timestamp_key: String,
     timestamp: U64,
 }
 
 impl Task {
-    fn new(bounty: Balance, repository_url: String, task_queue_timestamp_key: String) -> Self {
-        let task_id = generate_task_id();
-
+    fn new(bounty: Balance, repository_url: String) -> Self {
         Self {
             submitter_account_id: env::signer_account_id(),
             bounty,
             repository_url,
             confirmation_count: U128(0),
             confirmations: HashMap::new(),
-            id: task_id,
-            task_queue_timestamp_key,
+            id: generate_task_id(),
             timestamp: U64(env::block_timestamp()),
         }
     }
@@ -206,13 +243,12 @@ impl fmt::Display for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{{ submitter_account_id: {}, bounty: {}, respository_url: {}, confirmation_count: {}, id: {}, task_queue_timestamp_key: {}, timestamp: {} }}",
+            "{{ submitter_account_id: {}, bounty: {}, respository_url: {}, confirmation_count: {}, id: {}, timestamp: {} }}",
             self.submitter_account_id,
             self.bounty,
             self.repository_url,
             u128::from(self.confirmation_count),
             self.id,
-            self.task_queue_timestamp_key,
             self.timestamp.0
         )
     }
@@ -221,12 +257,15 @@ impl fmt::Display for Task {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Confirmation {
     result_hash: String,
-    result_url: String
+    result_url: String,
 }
 
 impl Confirmation {
     fn new(result_hash: String, result_url: String) -> Self {
-        Self { result_hash, result_url }
+        Self {
+            result_hash,
+            result_url,
+        }
     }
 }
 
@@ -235,8 +274,9 @@ impl Serialize for Confirmation {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("Confirmation", 1)?;
+        let mut state = serializer.serialize_struct("Confirmation", 2)?;
         state.serialize_field("result_hash", &self.result_hash)?;
+        state.serialize_field("result_url", &self.result_url)?;
         state.end()
     }
 }
@@ -244,9 +284,18 @@ impl Serialize for Confirmation {
 #[derive(near_sdk::BorshStorageKey, BorshSerialize)]
 enum Prefix {
     TaskQueue,
-    TaskItems,
     TaskHistory,
     AccountTaskHistory(AccountId),
+}
+
+fn near_log(string: String) {
+    env::log_str(string.as_str());
+}
+
+fn near_log_return(string: String) -> String {
+    env::log_str(string.as_str());
+
+    string
 }
 
 fn generate_task_id() -> String {
@@ -259,7 +308,7 @@ fn generate_task_id() -> String {
         })
         .collect();
 
-    random_string
+    format!("{}-{}", env::block_timestamp().to_string(), random_string)
 }
 
 // impl Display for Confirmation {
@@ -281,13 +330,7 @@ fn generate_task_id() -> String {
 //         state.serialize_field("confirmation_count", &self.confirmation_count)?;
 //         state.serialize_field("confirmations", &self.confirmations)?;
 //         state.serialize_field("id", &self.id)?;
-//         state.serialize_field("task_queue_timestamp_key", &self.task_queue_timestamp_key)?;
 //         state.serialize_field("timestamp", &self.timestamp)?;
 //         state.end()
 //     }
-// }
-
-// Helper function to verify a result hash
-// fn verify_result_hash(data: &Vec<u8>, hash: &Base64VecU8) -> bool {
-//     hash_result_data(data) == *hash
 // }
