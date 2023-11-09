@@ -1,5 +1,5 @@
 const contract = "obrigado.testnet";
-const tasks = Near.view(contract, "get_tasks_from_queue", {})
+// const tasks = Near.view(contract, "get_tasks_from_queue", {})
 
 const fontUrl = `https://ipfs.io/ipfs/bafkreicrs3gh7f77yhpw4xiejx35cd56jcczuhvqbwkn77g2ztkrjejopa`;
 
@@ -153,14 +153,17 @@ const onSubmitTaskClick = () => {
   Near.call(contract, "create_task", {
     repository_url: state.task_url, 
     bounty: state.task_bounty
-  });
+  },
+  30000000000000,
+  1000000000000000000000000); 
 };
 
 const onClearQueueClick = () => {
   Near.call(contract, "clear_queue", {});
 };
 const onRefreshQueueClick = () => {
-  const res = Near.call(contract, "get_tasks_from_queue", {});
+  const res = Near.view(contract, "get_tasks_from_queue", {});
+  console.log(res);
   State.update({ tasks: res });
 };
 
@@ -222,7 +225,7 @@ return (
       <button className="btn btn-primary mt-2" onClick={onRefreshQueueClick}>
           Refresh Task Queue
         </button>
-        {state.tasks?.map((component, i) => (
+        {featured.map((component, i) => (
           <div key={i} class="widget">
             <div class="flex">
               <a href={`#/${component.widgetSrc}`} target="_blank">
