@@ -1,0 +1,8 @@
+.cards_container {
+  max-height: 100%;
+  overflow: scroll;
+  display: grid;
+  justify-content: center;
+  gap: 40px;
+  grid-template-columns: auto auto auto;
+}

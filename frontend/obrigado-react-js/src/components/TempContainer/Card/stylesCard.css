@@ -1,0 +1,140 @@
+.card {
+  position: relative;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: rgb(37, 36, 36);
+  width: 350px;
+  font-family: 'Poppins';;
+}
+
+.card .btn-favorite {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  border: none;
+  background-color: transparent;
+}
+
+.card .btn-favorite svg {
+  color: white;
+}
+
+.card .btn-favorite.favorite svg {
+  color: red;
+}
+
+.card img {
+  height: 120px;
+  object-fit: cover;
+}
+
+.card .content {
+  position: relative;
+  padding: 50px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.card .content .letters {
+  position: absolute;
+  top: 0;
+  transform: translateY(-50%);
+  width: 45px;
+  height: 45px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  border: 2px solid rgb(37, 36, 36);
+  background-color: gray;
+  color: white;
+  font-weight: bold;
+}
+
+.card .content h1 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: white;
+  font-size: 20px;
+  line-height: 24px;
+  margin: 0;
+}
+
+.card .content h1 svg {
+  color: rgb(203, 164, 210);
+}
+
+.card .content p {
+  color: gray;
+  font-size: 12px;
+  line-height: 17px;
+  margin: 0;
+  text-align: left;
+}
+
+.card .content .open-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3px 12px;
+  border-radius: 20px;
+  color: black;
+  font-size: 14px;
+  line-height: 17px;
+}
+
+.card .content .open-box.open {
+  background-color: rgb(105, 178, 105);
+}
+
+.card .content .open-box.closed {
+  background-color: rgb(177, 67, 68);
+}
+
+.card .content .properties-list  {
+  margin: 0;
+  padding: 0;
+}
+
+.card .content .properties-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: lightgray;
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.card .content .properties-list li:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.card .content .properties-list li .image-wrapper {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: lightgray;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card .content .properties-list li .image-wrapper svg {
+  max-width: 80%;
+  max-height: 80%;
+  color: black;
+}
+
+.card .content .link-get-bounty {
+  align-self: flex-end;
+  background: transparent;
+  border: none;
+  color: rgb(248, 124, 70);
+  font-size: 14px;
+  line-height: 17px;
+  font-weight: 700;
+}

@@ -1,0 +1,137 @@
+.app {
+  text-align: center;
+  background-color: #0d0a11;
+}
+
+.app-logo {
+  width: 100%;
+}
+
+.header-button {
+  font-size: 14px;
+  color: #fff;
+  text-decoration: underline;
+  border-radius: 40px;
+  padding: 10px 20px;
+  background-color: #f67144;
+  font-family: 'Poppins';
+  border: none;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.sub-header {
+  margin-top: -350px;
+  background-color: #0d0a11;
+}
+
+.sub-header-main {
+  color: #fff;
+  font-size: 74px;
+}
+
+.header-subtitle {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Poppins';
+  font-size: 21px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.cards-section {
+  display: flex;
+  justify-content: center;
+  padding: 50px 0px;
+}
+
+.card-access {
+  background-color: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  width: 280px;
+  font-family: 'Poppins';
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.card-image {
+  width: 55px;
+  height: auto;
+}
+
+.card-access a {
+  color: #f67144;
+}
+
+.card_m_l {
+  margin-left: 40px;
+}
+
+.card-button {
+  font-size: 14px;
+  color: #fff;
+  text-decoration: underline;
+  border-radius: 40px;
+  padding: 10px 20px;
+  background-color: #0d0a11;
+  font-family: 'Poppins';
+  border: none;
+}
+
+.card-drag-drop {
+  margin-top: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  margin: 40px auto 0px;
+  position: relative;
+}
+
+.card-or-label {
+  font-size: 18px;
+  color: #fff;
+  padding: 0px 20px;
+}
+
+.card-fields .MuiBox-root{
+  display: flex;
+  flex-direction: column;
+}
+
+.card-drag-drop-description {
+  color: #ffb197;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.card-drag-drop-submit {
+  font-size: 14px;
+  color: #0d0a11;
+  border-radius: 40px;
+  padding: 10px 20px;
+  background-color: #9de6ba;
+  font-family: 'Poppins';
+  font-weight: bold;
+  border: none;
+  margin-top: 40px;
+}
+
+.close-drag-drop {
+  color: #fff;
+  position: absolute;
+  cursor: pointer;
+  right: 0px;
+  top: 0px;
+}
+
+.layout-wrapper {
+  padding-bottom: 70px;
+}
