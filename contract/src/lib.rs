@@ -63,10 +63,7 @@ impl TaskContract {
         match self.task_queue.get(&task_id) {
             Some(mut task) => {
                 // If the account hasn't already submitted a result for this task then add a confirmation:
-                if !task.confirmations.contains_key(&env::signer_account_id())
-                    || env::signer_account_id()
-                        == AccountId::new_unchecked("obrigado.testnet".to_string())
-                {
+                if !task.confirmations.contains_key(&env::signer_account_id()) {
                     near_log(format!("Adding result to task: {}", task_id));
 
                     self.add_confirmation(&mut task, result_hash, result_url);
