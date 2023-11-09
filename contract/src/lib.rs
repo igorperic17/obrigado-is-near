@@ -9,7 +9,7 @@ use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
-const MINIMUM_CONFIRMATION_COUNT: U128 = U128(2);
+const MINIMUM_CONFIRMATION_COUNT: U128 = U128(1);
 const TASK_ID_LENGTH: u32 = 12;
 const NO_OF_TASKS_RETURNED: u64 = 10;
 const MINIMUM_BOUNTY: Balance = 10_u128.pow(24);
@@ -125,22 +125,20 @@ impl TaskContract {
     fn move_task_to_history(&mut self, task: Task) {
         near_log(format!("Moving task: {} to history", task.id));
 
-        // If the task submitter has no history yet, create an empty history vector:
-        if !self.task_history.contains_key(&task.submitter_account_id) {
-            self.task_history.insert(
-                &task.submitter_account_id,
-                &Vector::new(Prefix::AccountTaskHistory(
-                    task.submitter_account_id.clone(),
-                )),
-            );
-        }
-
-        // Add the task to the submitters history.
         match self.task_history.get(&task.submitter_account_id) {
             Some(mut history) => {
                 history.push(&task);
+                self.task_history
+                    .insert(&task.submitter_account_id, &history);
             }
-            None => (),
+            None => {
+                let mut history = Vector::new(Prefix::AccountTaskHistory(
+                    task.submitter_account_id.clone(),
+                ));
+                history.push(&task);
+                self.task_history
+                    .insert(&task.submitter_account_id, &history);
+            }
         }
 
         // Remove the completed task from task_queue and task_items:
@@ -197,11 +195,11 @@ impl TaskContract {
         }
     }
 
-    //REMOVE THIS METHOD. ONLY USED FOR TESTING
+    //ONLY USED FOR TESTING
     pub fn clear_state(&mut self) {
         self.task_queue.clear();
         self.task_history
-            .remove(&AccountId::new_unchecked("obrigato.testnet".to_string()));
+            .remove(&AccountId::new_unchecked("obrigado.testnet".to_string()));
     }
 }
 
@@ -310,27 +308,3 @@ fn generate_task_id() -> String {
 
     format!("{}-{}", env::block_timestamp().to_string(), random_string)
 }
-
-// impl Display for Confirmation {
-//     fn fmt(&self, f: &mut Formatter) -> Result {
-//         write!(f, "{{ result_hash: {} }}", self.result_hash)
-//     }
-// }
-
-// impl Serialize for Task {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         // 3 is the number of fields in the struct.
-//         let mut state = serializer.serialize_struct("Task", 8)?;
-//         state.serialize_field("submitter_account_id", &self.submitter_account_id)?;
-//         state.serialize_field("bounty", &self.bounty)?;
-//         state.serialize_field("repository_url", &self.repository_url)?;
-//         state.serialize_field("confirmation_count", &self.confirmation_count)?;
-//         state.serialize_field("confirmations", &self.confirmations)?;
-//         state.serialize_field("id", &self.id)?;
-//         state.serialize_field("timestamp", &self.timestamp)?;
-//         state.end()
-//     }
-// }
