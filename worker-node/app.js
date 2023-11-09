@@ -6,10 +6,13 @@ import fs from 'fs';
 import { create } from 'ipfs-http-client';
 import { execa } from 'execa';
 
+
+const keyStore = new keyStores.UnencryptedFileSystemKeyStore('C:/Users/joaov/.near-credentials');
+
 const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https' });
 const nearConfig = {
   networkId: 'testnet',
-  keyStore: new keyStores.KeyStore(),
+  keyStore: keyStore,
   nodeUrl: 'https://rpc.testnet.near.org',
   walletUrl: 'https://wallet.testnet.near.org',
   contractName: 'obrigado.testnet',
@@ -21,6 +24,9 @@ async function downloadAndPrepareWorkspace(url, taskId) {
   if (!fs.existsSync(workspaceDir)) {
     fs.mkdirSync(workspaceDir, { recursive: true });
   }
+  console.log("PROCESSING TASK MADAFAKAAAAAA");
+  console.log(url);
+  console.log(taskId);
 
   const response = await axios({ url, responseType: 'arraybuffer' });
   await decompress(response.data, workspaceDir);
@@ -32,6 +38,7 @@ async function downloadAndPrepareWorkspace(url, taskId) {
 
 async function prepareWorkspace(workspaceDir) {
   // Create a Python virtual environment
+  console.log(workspaceDir);
   await execa('python3', ['-m', 'venv', 'venv'], { cwd: workspaceDir });
 
   // Install dependencies from requirements.txt
@@ -41,7 +48,7 @@ async function prepareWorkspace(workspaceDir) {
 // Function to execute the Python script
 async function executePythonScript(workspaceDir, entryScript) {
     return new Promise((resolve, reject) => {
-      PythonShell.run(`${workspaceDir}${entryScript}`, { pythonPath: `${workspaceDir}/venv/bin/python` }, (err, results) => {
+      PythonShell.run(`${workspaceDir}/${entryScript}`, { pythonPath: `${workspaceDir}/venv/bin/python` }, (err, results) => {
         if (err) {
           console.error('Error running Python script:', err);
           reject(err);
@@ -76,12 +83,12 @@ async function submitResultToContract(contract, taskId, resultUrl, resultHash) {
 }
 
 // Function to process a task
-async function processTask(contract, taskId, task) {
+async function processTask(contract, task) {
   try {
-    const workspaceDir = await downloadAndPrepareWorkspace(task.workspace_url, taskId);
+    const workspaceDir = await downloadAndPrepareWorkspace(task.repository_url, task.id);
     await executePythonScript(workspaceDir, 'main.py');
     const { url, hash } = await uploadResultsToIPFS(workspaceDir);
-    await submitResultToContract(contract, taskId, url, hash);
+    await submitResultToContract(contract, task.id, url, hash);
   } catch (error) {
     console.error('Error processing task:', error);
   }
@@ -110,21 +117,50 @@ async function listenToJobQueue() {
     // TODO: uncomment below to actually listen to the queue
     // TODO: add the changes above to cetch the console logs and package them
     const near = await connect(nearConfig);
-    const wallet = await near.account(nearConfig.contractName);
+    const wallet = await near.account('joaovascopestana.testnet');
     const contract = new Contract(wallet, nearConfig.contractName, { //nearConfig.contractName
-        viewMethods: ['get_tasks'],
-        changeMethods: ['submit_task_result'],
+        viewMethods: ['get_tasks_from_queue'],
+        changeMethods: ['submit_result'],
+        // the sender is the worker, also the bounty hunter 
+        sender: 'joaovascopestana.testnet',
     });
+
+
+
+    // {
+    //   submitter_account_id: 'develoco.testnet',
+    //   bounty: 21,
+    //   repository_url: 'asdasdasd',
+    //   confirmation_count: '0',
+    //   confirmations: {},
+    //   id: 'cmawozD4CwTh',
+    //   task_queue_timestamp_key: '1699480703646659420-develoco.testnet',
+    //   timestamp: '1699480703646659420'
+    // },
 
     // Polling for new tasks
     setInterval(async () => {
-        const tasks = await contract.get_tasks({ from_index: 0, limit: 10 });
-        for (const [taskId, task] of tasks) {
-        if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
-            await processTask(contract, taskId, task);
+        const tasks = await contract.get_tasks_from_queue({ });
+        // console.log(tasks);
+        for (let i = 0; i<tasks.length; i++) {
+          const task = tasks[i];
+          console.log(task);
+          if (!Object.values(task.confirmations).some(r => r.submitter === wallet.accountId)) {
+              await processTask(contract, task);
+          }
         }
-        }
-    }, 1000); // Poll every 10 seconds
+    }, 1000); // Poll every 1 seconds
+
+        // console.log(tasks);
+        // for (const [taskId, task] of tasks) {
+        //   if (task.status === 'Open' && !task.results.some(r => r.submitter === wallet.accountId)) {
+        //       await processTask(contract, taskId, task);
+        //   }
+        // }
+
+    // // submit_result(&mut self, task_id: String, result_hash: String)
+    // // `contract.methodName({ args, gas?, amount?, callbackUrl?, meta? })`
+    // const tasks = await contract.submit_result({args: {task_id: '1245678',result_hash: "test-hash"}});
 }
 
 listenToJobQueue().then(() => {
