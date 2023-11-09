@@ -122,10 +122,10 @@ async function uploadResultsToIPFS(workspaceDir, ipfs) {
       // Read the zipped file asynchronously
       const file = await fs2.readFile(zippedFilePath);
       console.log("about to upload");
-      
       const projectId = "2Xv5JJtzWWVdnZnA6ZMg9wo6Uif";
-      const projectSecret = "b9752e5f1a396a1c3ba2277951427b10";
-      const auth = 'Basic ' + Buffer.from(projectId + ':' + projectSecret).toString('base64');
+        const projectSecret = "b9752e5f1a396a1c3ba2277951427b10";
+
+        const auth = 'Basic ' + Buffer.from(projectId + ':' + projectSecret).toString('base64');
       const ipfs = create({ host: 'ipfs.infura.io', port: 5001, protocol: 'https', headers: { authorization: auth }});
       const added = await ipfs.add(file);
       console.log("done uploading");
