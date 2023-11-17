@@ -39,11 +39,11 @@ function App() {
           method: 'create_task', 
           contractId: CONTRACT_ADDRESS,
           args: {
-            "repository_url": "URL_BLA", 
-            "bounty": 12
+            "repository_url": "https://nftstorage.link/ipfs/bafkreiciq7gn6nwyqbapau4gk4ks52574yusxytlymrmncvb6rxrpwndfu", 
+            "bounty": 10
           },
           gas: "30000000000000",
-          deposit: "1000000000000000000000000"
+          deposit: "10000000000000000000000000"
         }).then(() => {
           // TODO: replace with snackbar
           // console.log("Successfully minted new tokens to youself. You're rich!");
